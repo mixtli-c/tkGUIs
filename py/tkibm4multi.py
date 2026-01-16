@@ -10,12 +10,22 @@ class App:
     """Define the application class."""
     def __init__(self,root):
         self.root = root
+        ### The following grid_columnconfigure statemets make all the columns to belong to the same group, will have the
+        ### size of the largest widget
+        #self.root.grid_columnconfigure(0, weight=1, uniform="fred")
+        #self.root.grid_columnconfigure(1, weight=1, uniform="fred")
+        #self.root.grid_columnconfigure(2, weight=1, uniform="fred")
+        #self.root.grid_columnconfigure(3, weight=1, uniform="fred")
+        #self.root.grid_columnconfigure(4, weight=1, uniform="fred")
+        #self.root.grid_columnconfigure(5, weight=1, uniform="fred")
+        #self.root.grid_columnconfigure(6, weight=1, uniform="fred")
+
         self.root.title('IBM4 Multimeter Mode')
 
         self.radio = Radiobutton(self,'ID;Set A0;Set A1;Set PWM;Ground Outputs;Read Inputs;Diff. Measurement', 'print(self.mssg)')
         # Add windows where we are going to write the std output.
         self.console_text = tk.Text(self.root, state='disabled', height=10)
-        self.console_text.grid(row=2,column=0,rowspan=10,columnspan=10)
+        self.console_text.grid(row=2,column=0,rowspan=10,columnspan=10,sticky='we')
 
         # We redirect sys.stdout -> TextRedirector
         self.redirect_sysstd()
@@ -25,16 +35,16 @@ class App:
         self.test_button.grid(row=12,column=0)
 
         self.voutval = tk.StringVar(value='0')
-        tk.Label(text='Vout :').grid(row=12,column=1)
-        tk.Entry(root, textvariable=self.voutval, width=10).grid(row=12,column=2)
+        tk.Label(text='Vout :').grid(row=12,column=1,sticky='e')
+        tk.Entry(root, textvariable=self.voutval, width=10).grid(row=12,column=2,sticky='w')
 
         self.pwmpc = tk.StringVar(value='0')
-        tk.Label(text='PWM % :').grid(row=12,column=3)
-        tk.Entry(root, textvariable=self.pwmpc, width=10).grid(row=12,column=4)
+        tk.Label(text='PWM % :').grid(row=12,column=3,sticky='e')
+        tk.Entry(root, textvariable=self.pwmpc, width=10).grid(row=12,column=4,sticky='w')
 
         self.diffch = tk.StringVar(value='A2,A3')
-        tk.Label(text='Diff. Channels (+,-) :').grid(row=12,column=5)
-        tk.Entry(root, textvariable=self.diffch, width=10).grid(row=12,column=6)
+        tk.Label(text='Diff. Channels (+,-) :').grid(row=12,column=5,sticky='e')
+        tk.Entry(root, textvariable=self.diffch, width=10).grid(row=12,column=6,sticky='w')
 
     def redirect_sysstd(self):
         # We specify that sys.stdout point to TextRedirector
@@ -77,7 +87,7 @@ class Radiobutton:
         for i, item in enumerate(self.items):
             r = tk.Radiobutton(App.root, text=item, variable=self.val,
                                 value=i, command=self.cb, **kwargs)
-            r.grid(row=1,column=i,sticky='w')
+            r.grid(row=1,column=i)#,sticky='w')
             #r.pack(side=tk.LEFT)
     def cb(self):
         """Evaluate the cmd string in the Radiobutton context."""
@@ -101,5 +111,6 @@ class TextRedirector(object):
         pass
 
 root = tk.Tk()
+root.resizable(False, False)
 app = App(root)
 root.mainloop()
