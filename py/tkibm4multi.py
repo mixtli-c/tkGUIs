@@ -21,6 +21,7 @@ class App:
         #self.root.grid_columnconfigure(6, weight=1, uniform="fred")
 
         self.root.title('IBM4 Multimeter Mode')
+        self.the_dev = IBM4_Lib.Ser_Iface() # find the first connected IBM4, open in DC mode by default
 
         self.radio = Radiobutton(self,'ID;Set A0;Set A1;Set PWM;Ground Outputs;Read Inputs;Diff. Measurement', 'print(self.mssg)')
         # Add windows where we are going to write the std output.
@@ -55,25 +56,24 @@ class App:
         print('Now running: '+self.radio.item)
         action = self.radio.val.get()
         ## ADAPTED FROM ROBS MULTIMETER MODE
-        the_dev = IBM4_Lib.Ser_Iface() # find the first connected IBM4, open in DC mode by default
         if action == 0:
-            the_dev.IDNPrompt()
+            self.the_dev.IDNPrompt()
         elif action == 1:
-            the_dev.WriteVoltage('A0', float(self.voutval.get()))
+            self.the_dev.WriteVoltage('A0', float(self.voutval.get()))
         elif action == 2:
-            the_dev.WriteVoltage('A1', float(self.voutval.get()))
+            self.the_dev.WriteVoltage('A1', float(self.voutval.get()))
         elif action == 3:
-            thedev.WritePWM(float(self.pwmpc.get()))
+            self.thedev.WritePWM(float(self.pwmpc.get()))
         elif action == 4:
-            the_dev.ZeroIBM4()
+            self.the_dev.ZeroIBM4()
         elif action == 5:
-            ch_vals = the_dev.ReadAverageVoltageAllChnnl()
+            ch_vals = self.the_dev.ReadAverageVoltageAllChnnl()
             print('AI voltages: ',ch_vals)
         elif action == 6:
             chns = self.diffch.get().split(',')
-            diff_res = the_dev.DiffReadMultiple(chns[0], chns[1])
+            diff_res = self.the_dev.DiffReadMultiple(chns[0], chns[1])
             print('Differential Read Value = %(v1)0.3f +/- %(v2)0.3f (V)'%{"v1":diff_res[0], "v2":diff_res[1]})
-        del the_dev # destructor for the IBM4 object, closes comms
+        #del the_dev # destructor for the IBM4 object, closes comms
 
 
 class Radiobutton:
@@ -84,6 +84,7 @@ class Radiobutton:
         self.cmd = cmd
         self.val = tk.IntVar()
         self.val.set(val)
+        self.item = self.items[self.val.get()]
         for i, item in enumerate(self.items):
             r = tk.Radiobutton(App.root, text=item, variable=self.val,
                                 value=i, command=self.cb, **kwargs)
