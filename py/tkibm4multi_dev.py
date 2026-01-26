@@ -86,8 +86,13 @@ class App:
         #del the_dev # destructor for the IBM4 object, closes comms
 
 class LabelEntry:
-    def __init__(self,place,keyvars,items='Entry',val=''):
+    def __init__(self,place,keyvars={'Entry':'0'}):
         sef.val = tk.StringVar()
+        for k,v in keyvars.times():
+            r = tk.Radiobutton(place, text=item, variable=self.val,
+                                value=i, command=self.cb, **kwargs)
+            r.grid(row=1,column=i)#,sticky='w')
+            #r.pack(side=tk.LEFT)
 
 class Radiobutton:
     """Create a list-based Radiobutton object."""
