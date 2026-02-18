@@ -1,26 +1,39 @@
 import tkinter as tk
+import tkinter.ttk as ttk
 import random
+import sys
 
 class App:
     def __init__(self, root=tk.Tk()):
         self.root = root
         self.root.resizable(False, False)
+        self.root.title('PY2018 Final Exam - Device Assignment')
 
-        self.root.title('IBM4 Multimeter Mode')
-        self.students=set()
-        self.devices=set()
         self.ssid_dev={}
         self.filedatavars = {'SSIDs':'./AY2026_PY2108.txt','Devices':'./AF_Devices.txt'}
         self.SSIDdatavars = {'Please enter student ID (SSID)':''}
+        self.students=set(open(self.filedatavars['SSIDs']).readlines())
+        self.devices=set(open(self.filedatavars['Devices']).readlines())
+
+        ### Menu
+        self.menu_bar = tk.Menu(root)
+        root.config(menu=self.menu_bar)
+
+        # Add items to the menu bar
+        self.file_menu = tk.Menu(self.menu_bar, tearoff=0)
+        self.file_menu.add_command(label="Save", command=self.save_data)
+        self.file_menu.add_separator()
+        self.file_menu.add_command(label="Exit", command=self.close_app)
+        self.menu_bar.add_cascade(label="File", menu=self.file_menu)
 
         ### Frame 1: Load files
         self.frame1 = ttk.Frame(self.root)
 
-        self.file_entries = LabelEntry(self.frame1,datavars=self.filedatavars)
+        self.file_entries = LabelEntry(self.frame1,datavars=self.filedatavars,stacking='hv')
         self.loadSSID_button = ttk.Button(self.frame1, text="Load", command=self.load_ssids)
         self.loadSSID_button.grid(row=1,column=3)
         self.loadDEV_button = ttk.Button(self.frame1, text="Load", command=self.load_devs)
-        self.loadDEV_button.grid(row=3,column=3)
+        self.loadDEV_button.grid(row=2,column=3)
 
         self.frame1.grid(row=1,column=0,columnspan=15,sticky='we')
 
@@ -37,7 +50,7 @@ class App:
         self.frame3 = ttk.Frame(self.root)
 
         # Add windows where we are going to write the std output.
-        self.console_text = tk.Text(self.frame2, state='disabled', height=10)
+        self.console_text = tk.Text(self.frame3, state='disabled', height=10)
         self.console_text.grid(row=2,column=0,rowspan=10,columnspan=15,sticky='we')
 
         self.frame3.grid(row=20,column=0,columnspan=15,sticky='we')
@@ -46,12 +59,34 @@ class App:
         self.redirect_sysstd()
 
     def load_ssids(self):
-        self.students=set(open(self.filedatavars['SSIDS']).readlines())
+        self.students=set(open(self.filedatavars['SSIDs'].get()).readlines())
 
     def load_devs(self):
-        self.devices=set(open(self.filedatavars['Devices']).readlines())
+        self.devices=set(open(self.filedatavars['Devices'].get()).readlines())
 
     def assign_dev(self):
+        self.loadSSID_button.config(state=tk.DISABLED)
+        self.loadDEV_button.config(state=tk.DISABLED)
+        try:
+            ssid = self.SSIDdatavars['Please enter student ID (SSID)'].get()
+            if ssid not in self.students:
+                raise Exception('Not in student list')
+            device = random.choice(self.devices)
+            self.ssid_dev[ssid]=device
+            self.devices = self.devices-device
+            self.students = self.students-ssid
+
+        except Exception as e:
+            print('ERROR:',e)
+            print('Try again')
+
+    def save_data(self):
+        with open('assignments.txt', 'w') as f:
+            print(self.ssid_dev, file=f)
+
+    def close_app(self):
+        self.save_data()
+        self.root.quit()
 
     def redirect_sysstd(self):
         # We specify that sys.stdout point to TextRedirector
@@ -61,17 +96,22 @@ class App:
 class LabelEntry:
     def __init__(self,place,datavars={'Entry':'0'},stacking='h'):
         i=1
+        j=1
         for k,v in datavars.items():
             keyval = v
             #print(keyval)
             datavars[k]=tk.StringVar(value=keyval)
-            if stacking == 'h'
+            if stacking == 'h':
                 ttk.Label(place, text=k+':').grid(row=1,column=i,sticky='e')
-                ttk.Entry(place, textvariable=datavars[k], width=10).grid(row=1,column=i+1,sticky='w')
-            if stacking == 'v'
-                ttk.Label(place, text=k+':').grid(row=i,column=1,sticky='e')
-                ttk.Entry(place, textvariable=datavars[k], width=10).grid(row=i+1,column=2,sticky='w')
+                ttk.Entry(place, textvariable=datavars[k], width=30).grid(row=1,column=i+1,sticky='w')
+            if stacking == 'hv':
+                ttk.Label(place, text=k+':').grid(row=j,column=1,sticky='e')
+                ttk.Entry(place, textvariable=datavars[k], width=30).grid(row=j,column=2,sticky='w')
+            if stacking == 'v':
+                ttk.Label(place, text=k+':').grid(row=i,column=0,sticky='w')
+                ttk.Entry(place, textvariable=datavars[k], width=30).grid(row=i+1,column=0,sticky='w')
             i+=2
+            j+=1
 
 class TextRedirector(object):
     def __init__(self, widget, tag):
