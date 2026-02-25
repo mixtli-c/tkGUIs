@@ -9,11 +9,14 @@ class App:
         self.root.resizable(False, False)
         self.root.title('PY2018 Final Exam - Device Assignment')
 
+        style = ttk.Style(root)
+        style.theme_use('alt')
+
         self.ssid_dev={}
         self.filedatavars = {'SSIDs':'./AY2026_PY2108.txt','Devices':'./AF_Devices.txt'}
         self.SSIDdatavars = {'Please enter student ID (SSID)':''}
-        self.students=set(open(self.filedatavars['SSIDs']).readlines())
-        self.devices=set(open(self.filedatavars['Devices']).readlines())
+        self.students=set(ele.replace("\n","") for ele in open(self.filedatavars['SSIDs']).readlines())
+        self.devices=set(ele.replace("\n","") for ele in open(self.filedatavars['Devices']).readlines())
 
         ### Menu
         self.menu_bar = tk.Menu(root)
@@ -57,12 +60,15 @@ class App:
 
         # We redirect sys.stdout -> TextRedirector
         self.redirect_sysstd()
+        #print(style.theme_names())
 
     def load_ssids(self):
-        self.students=set(open(self.filedatavars['SSIDs'].get()).readlines())
+        self.students=set(ele.replace("\n","") for ele in open(self.filedatavars['SSIDs'].get()).readlines())
+        #print(self.students)
 
     def load_devs(self):
-        self.devices=set(open(self.filedatavars['Devices'].get()).readlines())
+        self.devices=set(ele.replace("\n","") for ele in open(self.filedatavars['Devices'].get()).readlines())
+        #print(self.devices)
 
     def assign_dev(self):
         self.loadSSID_button.config(state=tk.DISABLED)
@@ -70,19 +76,26 @@ class App:
         try:
             ssid = self.SSIDdatavars['Please enter student ID (SSID)'].get()
             if ssid not in self.students:
-                raise Exception('Not in student list')
-            device = random.choice(self.devices)
+                raise Exception('Not in student list.')
+            print("Choosing device.")
+            device = random.choice(list(self.devices))
+            print("Device chosen.")
+            print(f'Device {device} assigned to student {ssid}.')
             self.ssid_dev[ssid]=device
-            self.devices = self.devices-device
-            self.students = self.students-ssid
+            self.devices = self.devices-{device}
+            self.students = self.students-{ssid}
 
         except Exception as e:
             print('ERROR:',e)
-            print('Try again')
+            print('Try again.')
 
     def save_data(self):
+        #data = []
         with open('assignments.txt', 'w') as f:
-            print(self.ssid_dev, file=f)
+            for k,v in self.ssid_dev.items():
+                f.write(f"{k}\t{self.ssid_dev[k]}\n")
+
+            #print(self.ssid_dev, file=f)
 
     def close_app(self):
         self.save_data()
