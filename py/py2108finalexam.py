@@ -7,7 +7,7 @@ class App:
     def __init__(self, root=tk.Tk()):
         self.root = root
         self.root.resizable(False, False)
-        self.root.title('PY2018 Final Exam - Device Assignment')
+        self.root.title('PY2108 Final Exam - Device Assignment')
 
         style = ttk.Style(root)
         style.theme_use('alt')
@@ -84,6 +84,12 @@ class App:
             self.ssid_dev[ssid]=device
             self.devices = self.devices-{device}
             self.students = self.students-{ssid}
+            with open('AF_Devices_tmp.txt', 'w') as f:
+                for dev in self.devices:
+                    f.write(f"{dev}\n")
+            with open('AY2026_PY2108_tmp.txt', 'w') as f:
+                for student in self.students:
+                    f.write(f"{student]}\n")
 
         except Exception as e:
             print('ERROR:',e)
@@ -91,7 +97,7 @@ class App:
 
     def save_data(self):
         #data = []
-        with open('assignments.txt', 'w') as f:
+        with open('PY2108_Dev_Assignments.txt', 'w') as f:
             for k,v in self.ssid_dev.items():
                 f.write(f"{k}\t{self.ssid_dev[k]}\n")
 
