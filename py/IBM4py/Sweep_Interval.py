@@ -1,9 +1,9 @@
 """
 Definition of a class that describes the bounds of a parameter sweep space
 e.g. sweep from start-value to stop-value in steps of delta
-
-R. Sheehan 1 - 3 - 2019
 """
+# R. Sheehan 1 - 3 - 2019
+
 
 class SweepSpace(object):
     """

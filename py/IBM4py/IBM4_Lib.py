@@ -68,10 +68,11 @@ import os
 import sys
 import glob
 import re
-import serial
+import serial # this package is actually called pyserial, install using py -m pip install pyserial
 import time
 import numpy
 import Sweep_Interval
+import subprocess
 
 # define the class for interfacing to an IBM4
 
@@ -104,7 +105,7 @@ class Ser_Iface(object):
             # Dictionaries for the Read, Write, PWM Channels
             self.Read_Chnnls = {"A2":0, "A3":1, "A4":2, "A5":3, "D2":4}
             self.Write_Chnnls = {"A0":0, "A1":1}
-            self.PWM_Chnnls = {"D9":9, "D10":10, "D11":11, "D12":12, "D13":13}
+            self.PWM_Chnnls = {"D0":0, "D1":1, "D7":7, "D9":9, "D10":10, "D11":11, "D12":12, "D13":13}
             
             # Dictionary for the Read Mode
             self.Read_Modes = {"DC":0, "AC":1}
@@ -145,7 +146,7 @@ class Ser_Iface(object):
         close the link to the instrument object when it goes out of scope
         """
         
-        if self.IBM4Port is not None and self.instr_obj.isOpen():
+        if self.IBM4Port != '' and self.instr_obj.isOpen():
             # close the link to the instrument object when it goes out of scope
             print('Closing Serial link with:',self.instr_obj.name)
             self.ZeroIBM4()
@@ -310,7 +311,6 @@ class Ser_Iface(object):
             elif sys.platform.startswith('linux') or sys.platform.startswith('cygwin'):
                 # this excludes your current terminal "/dev/tty"
                 ports = glob.glob('/dev/tty[A-Za-z]*')
-                #print(ports)
             elif sys.platform.startswith('darwin'):
                 ports = glob.glob('/dev/tty.*')
             else:
@@ -318,17 +318,24 @@ class Ser_Iface(object):
                 raise EnvironmentError('Unsupported platform')
         
             baud_rate = 9600
-        
-            self.IBM4Port = None # assign IBM4Port to None 
+
+            path = ".portdata"
+            if os.path.exists(path):
+                if sys.platform.startswith('win'):
+                    subprocess.run(f'attrib -h "{path}"', shell=True)   
+                with open(path, "r") as f:
+                    port = f.read()
+                    #print(f'the saved port is {port}')
+                    ports.insert(0, port)
+            else: 
+                self.IBM4Port = None # assign IBM4Port to None 
 
             for port in ports:
-                #print(port)
                 try:
                     if loud: print('Trying: ',port)
                     s = serial.Serial(port, baud_rate, timeout = 0.05, write_timeout = 0.1, inter_byte_timeout = 0.1, stopbits=serial.STOPBITS_ONE)
                     s.write(b'*IDN\r\n')
                     response = s.read_until('\n',size=None)
-                    #print(response)
                     Code=response.rsplit(b'\r\n')
                     if len(Code) > 2:
                         #if Code[1]==b'ISBY-UCC-RevA.1':
@@ -341,8 +348,20 @@ class Ser_Iface(object):
                             if loud: print(f'IBM4 found at {port}')
                             self.IBM4Port = port
                             s.close()
+                            #save port to hidden file:
+                            path = ".portdata"
+                            if sys.platform.startswith('win'):
+                                if os.path.exists(path):
+                                    subprocess.run(f'attrib -h "{path}"', shell=True)
+                            with open(path, "w") as f:
+                                f.write(port)
+                            #then make file hidden in Windows (already hidden in MacOS)
+                            if sys.platform.startswith('win'):
+                                subprocess.run(["attrib", "+h", path])
+
                             break # stop the search for an IBM4 at the first one you find   
                 except(OSError, serial.SerialException):
+                    # print("Error:", e)
                     # Ignore the errors that arise from non-IBM4 serial ports
                     pass
         except Exception as e:
@@ -396,16 +415,16 @@ class Ser_Iface(object):
         Inputs: 
         output_channel is one of A0, A1
         set_voltage is the desired voltage output value from the channel
-        set_voltage must be in the range [0.0, 3.3)
+        set_voltage must be in the range [0.0, 3.3]
         """
 
-        self.FUNC_NAME = ".WriteSingleChnnl()" # use this in exception handling messages
+        self.FUNC_NAME = ".WriteVoltage()" # use this in exception handling messages
         self.ERR_STATEMENT = "Error: " + self.MOD_NAME_STR + self.FUNC_NAME
 
         try:
             c1 = True if self.instr_obj.isOpen() else False # confirm that the instrument object has been instantiated
             c2 = True if output_channel in self.Write_Chnnls else False # confirm that the output channel label is correct
-            c3 = True if set_voltage >= self.VMIN and set_voltage < self.VMAX else False # confirm that the set voltage value is in range
+            c3 = True if set_voltage >= self.VMIN and set_voltage < self.VMAX or abs(set_voltage - self.VMAX) < self.DELTA_VMIN else False # confirm that the set voltage value is in range
             c10 = c1 and c2 and c3 # if all conditions are true then write can proceed
         
             if c10:
@@ -419,7 +438,7 @@ class Ser_Iface(object):
                 if not c2:
                     self.ERR_STATEMENT = self.ERR_STATEMENT + '\nCould not write to instrument\noutput_channel outside range {A0, A1}'
                 if not c3:
-                    self.ERR_STATEMENT = self.ERR_STATEMENT + '\nCould not write to instrument\nset_voltage outside range [0.0, 3.2]'
+                    self.ERR_STATEMENT = self.ERR_STATEMENT + '\nCould not write to instrument\nset_voltage %(v1)0.3f outside range [0.0, 3.3]'%{"v1":set_voltage}
                 raise Exception
         except Exception as e:
             print(self.ERR_STATEMENT)
@@ -429,11 +448,11 @@ class Ser_Iface(object):
 
         """
         This method interfaces with the IBM4 to set a pulse wave modulated (PWM) output signal.
-        The output Pin# must be: 5,7,9,10-13.
+        The output Pin defaults to pin D9 for this method
         The PWM output must be between 0 and 100, and is a floating point value.
     
         instrument_obj is the open visa resource connected to dev_addr
-        percentage must be in the range [0.0, 100]
+        percentage (type: float) must be in the range [0.0, 100]
         """
 
         self.FUNC_NAME = ".WritePWM()" # use this in exception handling messages
@@ -460,6 +479,44 @@ class Ser_Iface(object):
             print(self.ERR_STATEMENT)
             print(e)
     
+    def WriteAnyPWM(self, pinOut, percentage):
+
+        """
+        This method interfaces with the IBM4 to set a pulse wave modulated (PWM) output signal.
+        The output Pin# must be: 0, 1, 7, 9, 10-13.
+        The PWM output must be between 0 and 100, and is a floating point value.
+    
+        instrument_obj is the open visa resource connected to dev_addr
+        percentage (type: float) must be in the range [0.0, 100]
+        input_channel (type: str) is one of the labels for the PWM output channels 'D0', 'D1', 'D7', 'D9', 'D10'-'D13'
+        
+        This method is not intended for use with IBM4 enhancement board
+        """
+
+        self.FUNC_NAME = ".WriteAnyPWM()" # use this in exception handling messages
+        self.ERR_STATEMENT = "Error: " + self.MOD_NAME_STR + self.FUNC_NAME
+
+        try:
+            c1 = True if self.instr_obj.isOpen() else False # confirm that the instrument object has been instantiated
+            c3 = True if percentage >= 0 and percentage < 101 else False # confirm that PWM percentage is a sensible value
+            c4 = True if pinOut in self.PWM_Chnnls else False # confirm that the pintOut channel label is correct
+        
+            c10 = c1 and c3 and c4 # if all conditions are true then write can proceed
+            if c10:
+                output_channel = self.PWM_Chnnls[pinOut] # when using the IBM4 enhancement board the PWM is fixed to D9
+                write_cmd = 'PWM%(v1)d:%(v2)d\r\n'%{"v1":output_channel, "v2":percentage}
+                self.instr_obj.write( str.encode(write_cmd) ) # when using serial str must be encoded as bytes
+                #self.ResetBuffer() # reset buffer between write, read cmd pairs
+            else:
+                if not c1:
+                    self.ERR_STATEMENT = self.ERR_STATEMENT + '\nCould not write to instrument\nNo comms established'
+                if not c3:
+                    self.ERR_STATEMENT = self.ERR_STATEMENT + '\nCould not write to instrument\npercentage outside range [0, 100]'
+                raise Exception
+        except Exception as e:
+            print(self.ERR_STATEMENT)
+            print(e)
+
     # methods for obtaining data from the IBM4
     def ReadVoltage(self, input_channel, read_type = 'Single Voltage', no_reads = 10):
         
@@ -1308,6 +1365,16 @@ class Ser_Iface(object):
         print('\nSet PWM Output')
         pwmval = int( input( 'Enter PWM percentage: ' ) )
         self.WritePWM(pwmval)
+        
+    def AnyPWMPrompt(self):
+        """
+        Method for getting the IBM4 to output PWM signal from any PWM
+        """
+
+        print('\nSet PWM Output')
+        pwmval = int( input( 'Enter PWM percentage: ' ) )
+        pwmout = input( 'Enter PWM Channel: ' )
+        self.WriteAnyPWM(pwmout, pwmval)
     
     def DiffReadPrompt(self):
         """
@@ -1347,7 +1414,7 @@ class Ser_Iface(object):
         # this will make the code much cleaner
         # R. Sheehan 22 - 7 - 2024
 
-        self.FUNC_NAME = ".SingleChannelSweep()" # use this in exception handling messages
+        self.FUNC_NAME = ".SingleChannelSweepA()" # use this in exception handling messages
         self.ERR_STATEMENT = "Error: " + self.MOD_NAME_STR + self.FUNC_NAME
 
         try:
@@ -1375,7 +1442,8 @@ class Ser_Iface(object):
                 print('Sweeping voltage on Analog Output:',swp_channel)
                 print('Fixed voltage of',v_fixed,'(V) on Analog Output:',fixed_channel,'\n')
                 count = 0
-                while v_set < v_end:
+                #while v_set < v_end:
+                for i in range(0, no_steps, 1):
                     step_data = numpy.array([]) # instantiate an empty numpy array to hold the data for each step of the sweep
                     self.WriteVoltage(swp_channel, v_set) # set the voltage at the analog output channel
                     time.sleep(DELAY) # Apply a fixed delay
@@ -1398,7 +1466,7 @@ class Ser_Iface(object):
                 if not c2:
                     self.ERR_STATEMENT = self.ERR_STATEMENT + '\nCould not write to instrument\noutput_channel outside range {A0, A1}'
                 if not c3 or not c4 or not c5:
-                    self.ERR_STATEMENT = self.ERR_STATEMENT + '\nCould not write to instrument\nvoltage sweep bounds not appropriate for range [0.0, 3.3)'
+                    self.ERR_STATEMENT = self.ERR_STATEMENT + '\nCould not write to instrument\nvoltage sweep bounds not appropriate for range [0.0, 3.3]'
                 if not c6:
                     self.ERR_STATEMENT = self.ERR_STATEMENT + '\nCould not write to instrument\nn_steps not defined correctly'
                 if not c7:
@@ -1442,7 +1510,7 @@ class Ser_Iface(object):
         # Might not be too bad if I wrote another method to help the user unpack the A2x, A3x, A4x, A5x, D2x readings
         # R. Sheehan 23 - 7 - 2024
 
-        self.FUNC_NAME = ".SingleChannelSweep()" # use this in exception handling messages
+        self.FUNC_NAME = ".SingleChannelSweepB()" # use this in exception handling messages
         self.ERR_STATEMENT = "Error: " + self.MOD_NAME_STR + self.FUNC_NAME
 
         try:       
@@ -1450,7 +1518,7 @@ class Ser_Iface(object):
             c2 = True if swp_channel in self.Write_Chnnls else False # confirm that the output channel label is correct             
             c3 = voltage_interval.defined # check that the parameters in the interval have been defined correctly
             c7 = True if no_averages > 3 and no_averages < 103 else False # confirm that no. averages being taken is a sensible value
-            c8 = True if v_fixed >= self.VMIN and v_fixed < self.VMAX else False # confirm that the fixed voltage is in range
+            c8 = True if v_fixed >= self.VMIN and v_fixed <= self.VMAX else False # confirm that the fixed voltage is in range
             c10 = c1 and c2 and c3 and c7 and c8
         
             if c10:
@@ -1466,7 +1534,8 @@ class Ser_Iface(object):
                 print('Sweeping voltage on Analog Output:',swp_channel)
                 print('Fixed voltage of',v_fixed,'(V) on Analog Output:',fixed_channel,'\n')
                 count = 0
-                while v_set < voltage_interval.stop:
+                #while v_set < voltage_interval.stop:
+                for i in range(0, voltage_interval.Nsteps, 1):
                     step_data = numpy.array([]) # instantiate an empty numpy array to hold the data for each step of the sweep
                     self.WriteVoltage(swp_channel, v_set) # set the voltage at the analog output channel
                     time.sleep(DELAY) # Apply a fixed delay
@@ -1498,4 +1567,139 @@ class Ser_Iface(object):
         except Exception as e:
             print(self.ERR_STATEMENT)
             print(e)    
-        
+
+
+    def ReadDoubleMultiple(self, channel1, channel2, no_reads=10, loud=False):
+        """
+        This method interfaces with the IBM4 to perform a read operation for two channel at (almost) the same time.
+        The input channels must be between 0 and 4, and the number of readings to be averaged should be greater than zero.
+        At some point the number of readings will be too high and will cause a timeout error. This should only happen for numbers
+        larger than 10000. The output will be an array of Voltage (floating point) values.
+
+        Inputs:
+        channel1 (type: str) is one of the labels for the analog input channels 'A2', 'A3', 'A4', 'A5', 'D2'
+        channel2 (type: str) is one of the labels for the analog input channels 'A2', 'A3', 'A4', 'A5', 'D2', accepting that it is not the same as channel1
+        no_reads (type: int) is the num. of readings to be taken at both analog input channels
+
+        Outputs:
+        res (type: list) contains three elements
+        res[0] = average of all channel1 readings
+        res[1] = variation in channel1 readings
+        res[2] = numpy array with all channel1 read values
+        res[3] = average of all channel2 readings
+        res[4] = variation in channel2 readings
+        res[5] = numpy array with all channel2 read values
+        """
+
+        self.FUNC_NAME = (
+            ".ReadDoubleMultiple()"  # use this in exception handling messages
+        )
+        self.ERR_STATEMENT = "Error: " + self.MOD_NAME_STR + self.FUNC_NAME
+
+        try:
+            c1 = (
+                True if self.instr_obj.isOpen() else False
+            )  # confirm that the instrument object has been instantiated
+            c2 = (
+                True if channel1 in self.Read_Chnnls else False
+            )  # confirm that the positive channel label is correct
+            c3 = (
+                True if channel2 in self.Read_Chnnls else False
+            )  # confirm that the positive channel label is correct
+            c4 = (
+                True if channel2 != channel1 else False
+            )  # confirm that the positive channel label is correct
+            c5 = (
+                True if no_reads > 2 and no_reads < 10000 else False
+            )  # confirm that no. averages being taken is a sensible value
+
+            c10 = (
+                c1 and c2 and c3 and c4 and c5
+            )  # if all conditions are true then write can proceed
+
+            if c10:
+                read_cmd = "DoubleRead%(v1)d:%(v2)d:%(v3)d\r\n" % {
+                    "v1": self.Read_Chnnls[channel1],
+                    "v2": self.Read_Chnnls[channel2],
+                    "v3": no_reads,
+                }
+                self.instr_obj.write(
+                    str.encode(read_cmd)
+                )  # when using serial str must be encoded as bytes
+                read_result = self.instr_obj.read_until(
+                    size=read_cmd.__sizeof__()
+                )  # read_result returned as bytes and clear the return message
+
+                read_result = self.instr_obj.read_until(
+                    b"Output", size=None
+                )  # read_result returned as bytes, must be cast to str before being parsed
+                vals_str = re.findall(
+                    r"[-+]?\d+[\.]?\d*", str(read_result)
+                )  # parse the numeric values of read_result into a list of strings
+                deltaT = vals_str[0]
+                print("deltaT = ", deltaT, "\n")
+
+                read_result = self.instr_obj.read_until(
+                    b"\n", size=None
+                )  # read_result returned as bytes, must be cast to str before being parsed
+                vals_str = re.findall(
+                    r"[-+]?\d+[\.]?\d*", str(read_result)
+                )  # parse the numeric values of read_result into a list of strings
+                # vals_flt = [float(x) for x in vals_str] # convert the list of strings to floats, save as a list
+                # only interested in the last no_reads values so read backwards into the vals_str list using list-slice operator
+                vals = numpy.float64(
+                    vals_str[-(no_reads * 2) :]
+                )  # convert the list of strings to floats using numpy, save as numpy array (better)
+                if loud:
+                    print(read_result)
+                    print(vals)  # print the parsed values
+                mid = len(vals) // 2
+                vals1 = vals[:mid]
+                vals2 = vals[mid:]
+
+                vals1_mean = numpy.mean(
+                    vals1
+                )  # compute the average of all the diff_reads
+                vals1_delta = 0.5 * (
+                    numpy.max(vals1) - numpy.min(vals1)
+                )  # compute the range of the diff_read
+
+                vals2_mean = numpy.mean(
+                    vals2
+                )  # compute the average of all the diff_reads
+                vals2_delta = 0.5 * (
+                    numpy.max(vals2) - numpy.min(vals2)
+                )  # compute the range of the diff_read
+
+                res = [vals1_mean, vals1_delta, vals1, vals2_mean, vals2_delta, vals2]
+                return res  # return the relevant numerical values
+            else:
+                if not c1:
+                    self.ERR_STATEMENT = (
+                        self.ERR_STATEMENT
+                        + "\nCould not read from instrument\nNo comms established"
+                    )
+                if not c2:
+                    self.ERR_STATEMENT = (
+                        self.ERR_STATEMENT
+                        + "\nCould not read from instrument\npos_channel outside range {A0, A1}"
+                    )
+                if not c3:
+                    self.ERR_STATEMENT = (
+                        self.ERR_STATEMENT
+                        + "\nCould not read from instrument\npos_channel outside range {A0, A1}"
+                    )
+                if not c4:
+                    self.ERR_STATEMENT = (
+                        self.ERR_STATEMENT
+                        + "\nCould not read from instrument\npos_channel cannot be the same as neg_channel"
+                    )
+                if not c5:
+                    self.ERR_STATEMENT = (
+                        self.ERR_STATEMENT
+                        + "\nCould not read from instrument\nno_averages outside range [3, 10000]"
+                    )
+                raise Exception
+        except Exception as e:
+            print(self.ERR_STATEMENT)
+            print(e)

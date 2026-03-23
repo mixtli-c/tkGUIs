@@ -206,7 +206,6 @@ def Differential_Readings():
         print("Vhi: A2, Vlo: A3")
         print("Sense Voltage: %(v1)0.3f +/- %(v2)0.3f (V)"%{"v1":vals[0],"v2":vals[1]})
         print("Sense Current: %(v1)0.1f +/- %(v2)0.1f (mA)"%{"v1":vals[0]/Rval,"v2":vals[1]/Rval})
-        numpy.savetxt('DiffReadWaveform.txt',vals[2])
         
         vals = the_dev.DifferentialRead('A3', 'A4', 'Multiple Voltage', Nreads)
         print("Vhi: A3, Vlo: A4")
@@ -317,14 +316,13 @@ def Read_Waveform():
         # instantiate an object that interfaces with the IBM4
         the_dev = IBM4_Lib.Ser_Iface(read_mode = 'AC') # find the first connected IBM4
         
-        Nreads = 601 # no. readings to be made
-        input_ch = 'A2' # analog input channel on which readings are to be made
+        Nreads = 501 # no. readings to be made        
+        input_ch = 'A3' # analog input channel on which readings are to be made
 
         # time the measurement
         start = time.time()
         
         # overloaded call to ReadMultipleVoltage
-        #the_dev.WritePWM(50)
         avg, err, vals = the_dev.ReadVoltage(input_ch, 'Multiple Voltage', Nreads)
         
         # Direct call to ReadMultipleVoltage
@@ -416,7 +414,7 @@ def Linear_Sweep_V2():
         the_dev = IBM4_Lib.Ser_Iface() # find the first connected IBM4, open in DC mode by default
 
         # instantiate an object to keep track of the sweep space parameters
-        no_steps = 34
+        no_steps = 10
         v_start = 0.0
         v_end = 3.3
         the_interval = Sweep_Interval.SweepSpace(no_steps, v_start, v_end)
@@ -427,77 +425,78 @@ def Linear_Sweep_V2():
 
         print('Measured data')
         print(sweep_data)
-
+       
         del the_dev # destructor for the IBM4 object, closes comms
     except Exception as e:
         print(ERR_STATEMENT)
         print(e)
 
 
-def Linear_Sweep_V3(v_fixed):
+def Read_Double_Waveform(input_ch1, input_ch2):
     """
-    Perform a linear sweep on chosen channels
+    Perform multiple readings to read two waveform at (almost) the same time
+    use the overloaded ReadVoltage Method to obtain an averaged reading
+    or use the ReadMultipleVoltage Method directly
+
+    the user must be careful when using overloaded methods
+    python allows for different return types and different numbers of returned elements
+    what is not forbidden is permitted and exploited
     """
 
-    FUNC_NAME = ".Linear_Sweep_V2()"
+    FUNC_NAME = ".Read_Double_Waveform()"
     ERR_STATEMENT = "Error: " + MOD_NAME_STR + FUNC_NAME
 
     try:
         # instantiate an object that interfaces with the IBM4
-        the_dev = IBM4_Lib.Ser_Iface() # find the first connected IBM4, open in DC mode by default
+        the_dev = IBM4_Lib.Ser_Iface(read_mode="AC")  # find the first connected IBM4
 
-        # instantiate an object to keep track of the sweep space parameters
-        no_steps = 34
-        v_start = 0.0
-        v_end = 3.3
-        the_interval = Sweep_Interval.SweepSpace(no_steps, v_start, v_end)
+        Nreads = 501  # no. readings to be made
+        # input_ch1 = "A2"  # analog input channel #1 on which readings are to be made
+        # input_ch2 = "A3"  # analog input channel #2 on which readings are to be made
 
-        # A1 will sweep while A0 will be kept constant at v_fixed
-        # I wonder what that could be used for?
-        sweep_data = the_dev.SingleChannelSweepB('A1', the_interval, v_fixed) # use channel A1 to sweep over the voltage interval
+        # time the measurement
+        start = time.time()
 
-        print('Measured data')
-        print(sweep_data)
-        #numpy.savetxt('sweepdataA0is'+str(fixed)+'.txt',numpy.asarray(sweep_data[:,0:2]))
+        # overloaded call to ReadMultipleVoltage
+        the_dev.WritePWM(50)
+        time.sleep(0.2)
+        avg1, err1, vals1, avg2, err2, vals2 = the_dev.ReadDoubleMultiple(
+            input_ch1, input_ch2, Nreads
+        )
 
-        del the_dev # destructor for the IBM4 object, closes comms
+        # Direct call to ReadMultipleVoltage
+        # avg, err, vals = the_dev.ReadMultipleVoltage(input_ch, Nreads) #
 
-        return sweep_data
-    except Exception as e:
-        print(ERR_STATEMENT)
-        print(e)
+        end = time.time()
 
+        # compute the time taken to perform all the measurements
+        # this time does not include the overheads incurred by the IBM4 itself
+        deltaT = end - start
+        measT = deltaT / (float(Nreads))
+        SR = 1.0 / measT
 
-def Linear_Sweep_V4():
-    """
-    Perform a linear sweep on chosen channels
-    """
+        print(
+            "Analog Double Input: %(v1)s, %(v2)s, Read Method: Double Voltage => ReadDoubleMultiple"
+            % {"v1": input_ch1, "v2": input_ch2}
+        )
+        print(
+            "%(v1)d measurements performed in %(v2)0.3f seconds"
+            % {"v1": Nreads, "v2": deltaT}
+        )
+        print("%(v1)0.4f secs / measurement" % {"v1": measT})
+        print("Sample Rate: %(v1)0.2f Hz" % {"v1": SR})
+        print(
+            "Measured Averages Voltage1: %(v1)0.3f +/- %(v2)0.3f (V), Voltage2: %(v3)0.3f +/- %(v4)0.3f (V)\n"
+            % {"v1": avg1, "v2": err1, "v3": avg2, "v4": err2}
+        )
 
-    FUNC_NAME = ".Linear_Sweep_V2()"
-    ERR_STATEMENT = "Error: " + MOD_NAME_STR + FUNC_NAME
+        # Make a plot of the recorded waveform if you desire
+        # Write the data to a file, make a plot elsewhere
+        filename = "Double_Waveform_Data.txt"
+        vals = numpy.column_stack((vals1, vals2))
+        numpy.savetxt(filename, vals, fmt="%0.4f", delimiter="\t")
 
-    try:
-        # instantiate an object that interfaces with the IBM4
-        the_dev = IBM4_Lib.Ser_Iface() # find the first connected IBM4, open in DC mode by default
-
-        # instantiate an object to keep track of the sweep space parameters
-        no_steps = 34
-        v_start = 0.0
-        v_end = 3.3
-        the_interval = Sweep_Interval.SweepSpace(no_steps, v_start, v_end)
-
-        # A1 will sweep while A0 will be kept constant at v_fixed
-        # I wonder what that could be used for?
-        sweep_data = the_dev.SingleChannelSweepB('A1', the_interval, v_fixed = 2.0) # use channel A1 to sweep over the voltage interval
-
-        print('Measured data')
-        print(sweep_data)
-        sweep_out = numpy.asarray(sweep_data)
-
-
-        del the_dev # destructor for the IBM4 object, closes comms
-        return sweep_out
-
+        del the_dev  # destructor for the IBM4 object, closes comms
     except Exception as e:
         print(ERR_STATEMENT)
         print(e)
