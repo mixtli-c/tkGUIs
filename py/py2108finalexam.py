@@ -89,7 +89,7 @@ class App:
                     f.write(f"{dev}\n")
             with open('AY2026_PY2108_tmp.txt', 'w') as f:
                 for student in self.students:
-                    f.write(f"{student]}\n")
+                    f.write(f"{student}\n")
 
         except Exception as e:
             print('ERROR:',e)
