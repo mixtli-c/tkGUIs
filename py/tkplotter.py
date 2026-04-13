@@ -30,20 +30,13 @@ def plot():
 
     canvas.draw()
 
-    # placing the canvas on the Tkinter window
-    canvas.get_tk_widget().pack()
-
-    #    creating the Matplotlib toolbar
-    #toolbar = NavigationToolbar2Tk(canvas,
-    #                               window)
-    #toolbar.update()
-    # placing the toolbar on the Tkinter window
-    canvas.get_tk_widget().pack()
 
 # the main Tkinter window
 window = tk.Tk()
 canvas = FigureCanvasTkAgg(fig,
                                master = window)
+
+
 # setting the title
 window.title('Plotting in Tkinter')
 
@@ -60,6 +53,6 @@ plot_button = tk.Button(master = window,
 # place the button
 # in main window
 plot_button.pack()
-
+canvas.get_tk_widget().pack()
 # run the gui
 window.mainloop()
