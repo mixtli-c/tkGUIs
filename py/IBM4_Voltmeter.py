@@ -22,6 +22,7 @@ class App:
         #self.root.grid_columnconfigure(5, weight=1, uniform="fred")
         #self.root.grid_columnconfigure(6, weight=1, uniform="fred")
         self.root.title('IBM4 Live Voltmeter')
+        self.p = None
 
         ### Initialising IBM4
         self.the_dev = IBM4_Lib.Ser_Iface() # find the first connected IBM4, open in DC mode by default
@@ -44,10 +45,16 @@ class App:
         self.output = ttk.Label(self.frame2,textvariable=self.output_val)
         self.frame2.grid(row=2,column=1,columnspan=3,sticky='we')
 
+        ### Frame 3: Output label
+        self.frame3 = ttk.LabelFrame(self.root,text="Voltage")
+        self.canvas = FigureCanvasTkAgg(plt.gcf(), master=self.frame3)
+        self.canvas.get_tk_widget().pack(fill=tk.BOTH, expand=1)
+        self.frame3.grid(row=3,column=1,rowspan=10,sticky='we')
+
         # RUN and LIVEPLOT buttons
-        self.run_button = ttk.Button(self.root, text="Run", command=self.run_begin).grid(row=5,column=0)
-        self.plot_button = ttk.Button(self.root, text="Live plot", command=self.plot_mode).grid(row=5,column=1)
-        self.stop_button = ttk.Button(self.root, text="Stop", command=self.stop_mode).grid(row=5,column=2)
+        self.run_button = ttk.Button(self.root, text="Run", command=self.run_begin).grid(row=15,column=0)
+        self.stop_button = ttk.Button(self.root, text="Stop", command=self.stop_mode).grid(row=15,column=2)
+        self.stop_button.config(state=tk.DISABLED)
 
     def run_mode(self):
         print('Now running: '+self.radio.item)
@@ -73,16 +80,36 @@ class App:
         #del the_dev # destructor for the IBM4 object, closes comms
 
     def run_begin(self):
-        self.run=True
-        self.my_thread = th.Thread(target=self.start_counter) # create new thread that runs the self.start_counter() function
-        self.my_thread.start() # start the threading
+        self.run_button.config(state=tk.DISABLED)
+        self.stop_button.config(state=tk.NORMAL)
+        try:
+            if self.my_thread.is_alive():
+                print("Closing previous thread.")
+                self.my_thread.join()
+                print("Thread closed, starting acquisition.")
+            else:
+                print("Starting acquisition.")
+        except:
+            print("Starting acquisition.")
+        self.run = True
+        self.my_thread = th.Thread(target=self.run_mode)
+        self.my_thread.start()
 
     def stop_mode(self):
-        self.counter_label.configure(text="counter stopped")
-        self.run = False # set the variable to false so that the while loop inside the threading stops
-        self.my_thread.join() # this destoy the created threading
+        self.run_button.config(state=tk.NORMAL)
+        self.stop_button.config(state=tk.DISABLED)
 
-root = tk.Tk()
-root.resizable(False, False)
-app = App(root)
-root.mainloop()
+        try:
+            self.p.terminate()
+        except:
+            print("No subprocess to terminate?")
+
+        self.run=False
+
+        print("Terminating acquisition.")
+        self.my_thread.join(timeout=.1)
+
+
+if __name__ == "__main__":
+    app = App()
+    app.root.mainloop()
