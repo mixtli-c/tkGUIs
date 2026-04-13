@@ -13,7 +13,7 @@ class App:
         style.theme_use('alt')
 
         self.ssid_dev={}
-        self.filedatavars = {'SSIDs':'./AY2026_PY2108.txt','Devices':'./AF_Devices.txt'}
+        self.filedatavars = {'SSIDs':'./test.txt','Devices':'./test.txt'}
         self.SSIDdatavars = {'Please enter student ID (SSID)':''}
         self.students=set(ele.replace("\n","") for ele in open(self.filedatavars['SSIDs']).readlines())
         self.devices=set(ele.replace("\n","") for ele in open(self.filedatavars['Devices']).readlines())
