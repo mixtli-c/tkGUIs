@@ -35,10 +35,15 @@ class App:
         self.plot_data=[]
         self.run = None
         self.wait = tk.DoubleVar(value=2)
+        self.xsize = 400
+        self.xaxis = []
 
         ### Figure for the canvas
         self.fig = Figure(figsize = (5, 5),dpi = 100)
         self.vplot = self.fig.add_subplot(111)
+        self.vplot.axis([1,self.xsize,0,3.5])
+        self.line, = self.vplot.plot(self.xaxis,self.plot_data)
+        #print(self.line,self.line[0])
 
         ### Frame 1: Combobox
         self.frame1 = ttk.LabelFrame(self.root,text="Select Channels")
@@ -64,6 +69,9 @@ class App:
         ### Frame 3: Output plot
         self.frame3 = ttk.LabelFrame(self.root,text="Plot")
         self.canvas = FigureCanvasTkAgg(self.fig, master=self.frame3)
+        self.canvas.draw()
+        self.vplot.add_line(self.line)
+        self.background = self.canvas.copy_from_bbox(self.vplot.bbox)
         self.canvas.get_tk_widget().pack(fill=tk.BOTH, expand=1)
         self.frame3.grid(row=10,column=0,rowspan=10,columnspan=10,sticky='we')
 
@@ -76,6 +84,8 @@ class App:
 
     def run_mode(self):
         self.plot_data=[]
+        self.xaxis=[]
+        i=1
         while self.run:
             tstart = time.monotonic()
             if self.channelplus.get()==self.__channels[5] and self.channelmin.get()==self.__channels[5]:
@@ -97,12 +107,22 @@ class App:
                 self.plot_data.append(voltage)
                 self.output_val.set(f'{voltage:.3f}')
 
-            self.vplot.clear()
-            self.vplot.plot(self.plot_data)
-            self.canvas.draw()
+            if len(self.plot_data) > self.xsize:
+                self.plot_data = self.plot_data[-self.xsize:]
+                self.line.set_ydata(self.plot_data)
+            else:
+                self.xaxis.append(i)
+                i+=1
+                self.line.set_data(self.xaxis,self.plot_data)
+
+            #blit new data into old frame
+            self.canvas.restore_region(self.background)
+            self.vplot.draw_artist(self.line,)
+            self.canvas.blit(self.vplot.bbox)
+
             tend = time.monotonic()
             deltat = tend-tstart
-            #self.output_val.set(f'{deltat:.3f}') # outputs deltat for performance testing
+            self.output_val.set(f'{deltat:.3f}') # outputs deltat for performance testing
 
             if deltat < 1/self.wait.get():
                 time.sleep(1/self.wait.get()-deltat)
