@@ -33,15 +33,21 @@ class App:
         self.channelmin = tk.StringVar(value=self.__channels[1])
         self.output_val = tk.StringVar(value='-.---')
         self.plot_data=[]
+        self.xaxis=[]
         self.run = None
         self.wait = tk.DoubleVar(value=2)
-        self.xsize = 400
-        self.xaxis = []
+        self.axis_size = tk.StringVar(value='1,400,0,3.5')
+        self.plot_sizes = self.axis_size.get().split(',')
+        self.xmin = int(self.plot_sizes[0])
+        self.xmax = int(self.plot_sizes[1])
+        self.ymin = float(self.plot_sizes[2])
+        self.ymax = float(self.plot_sizes[3])
+        self.xsize = self.xmax - self.xmin + 1
 
         ### Figure for the canvas
         self.fig = Figure(figsize = (5, 5),dpi = 100)
         self.vplot = self.fig.add_subplot(111)
-        self.vplot.axis([1,self.xsize,0,3.5])
+        self.vplot.axis([self.xmin,self.xmax,self.ymin,self.ymax])
         self.line, = self.vplot.plot(self.xaxis,self.plot_data)
         #print(self.line,self.line[0])
 
@@ -66,6 +72,13 @@ class App:
         ttk.Label(self.frame2,textvariable=self.output_val).pack(fill=tk.BOTH, expand=1)
         self.frame2.grid(row=4,column=0,columnspan=2,sticky='we')
 
+        ### Frame 2A: Update plot axes
+        self.frame2a = ttk.LabelFrame(self.root,text="Change X,Y [xmin,xmax,ymin,ymax]")
+        tk.Entry(self.frame2a, textvariable=self.axis_size, width=5).pack(fill='x', expand=1)
+        self.size_update = ttk.Button(self.frame2a, text="Update", command=self.plot_update)
+        self.size_update.pack(fill='x',expand=1)
+        self.frame2a.grid(row=2,column=2,rowspan=4,columnspan=12)
+
         ### Frame 3: Output plot
         self.frame3 = ttk.LabelFrame(self.root,text="Plot")
         self.canvas = FigureCanvasTkAgg(self.fig, master=self.frame3)
@@ -81,6 +94,22 @@ class App:
         self.stop_button = ttk.Button(self.root, text="Stop", command=self.stop_mode)
         self.stop_button.grid(row=30,column=2)
         self.stop_button.config(state=tk.DISABLED)
+
+    def plot_update(self):
+        self.vplot.cla()
+        self.plot_data=[]
+        self.xaxis=[]
+        self.plot_sizes = self.axis_size.get().split(',')
+        self.xmin = int(self.plot_sizes[0])
+        self.xmax = int(self.plot_sizes[1])
+        self.ymin = float(self.plot_sizes[2])
+        self.ymax = float(self.plot_sizes[3])
+        self.xsize = self.xmax - self.xmin + 1
+        self.vplot.axis([self.xmin,self.xmax,self.ymin,self.ymax])
+        self.line, = self.vplot.plot(self.xaxis,self.plot_data)
+        self.canvas.draw()
+        self.vplot.add_line(self.line)
+        self.background = self.canvas.copy_from_bbox(self.vplot.bbox)
 
     def run_mode(self):
         self.plot_data=[]
@@ -122,7 +151,7 @@ class App:
 
             tend = time.monotonic()
             deltat = tend-tstart
-            self.output_val.set(f'{deltat:.3f}') # outputs deltat for performance testing
+            #self.output_val.set(f'{deltat:.3f}') # outputs deltat for performance testing
 
             if deltat < 1/self.wait.get():
                 time.sleep(1/self.wait.get()-deltat)
@@ -131,6 +160,7 @@ class App:
     def run_begin(self):
         self.run_button.config(state=tk.DISABLED)
         self.stop_button.config(state=tk.NORMAL)
+        self.size_update.config(state=tk.DISABLED)
         try:
             if self.my_thread.is_alive():
                 #print("Closing previous thread.")
@@ -147,7 +177,7 @@ class App:
     def stop_mode(self):
         self.run_button.config(state=tk.NORMAL)
         self.stop_button.config(state=tk.DISABLED)
-
+        self.size_update.config(state=tk.NORMAL)
         self.run=False
 
         print("Terminating acquisition.")
