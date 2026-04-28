@@ -51,6 +51,17 @@ class App:
         self.line, = self.vplot.plot(self.xaxis,self.plot_data)
         #print(self.line,self.line[0])
 
+        ### Menu
+        self.menu_bar = tk.Menu(root)
+        root.config(menu=self.menu_bar)
+
+        # Add items to the menu bar
+        self.file_menu = tk.Menu(self.menu_bar, tearoff=0)
+        self.file_menu.add_command(label="Save Data", command=self.save_data)
+        self.file_menu.add_separator()
+        self.file_menu.add_command(label="Exit", command=self.close_app)
+        self.menu_bar.add_cascade(label="File", menu=self.file_menu)
+
         ### Frame 1: Combobox
         self.frame1 = ttk.LabelFrame(self.root,text="Select Channels")
         self.cbox1 = ttk.Combobox(self.frame1, textvariable=self.channelplus,values=self.__channels)
@@ -138,7 +149,7 @@ class App:
 
             if len(self.plot_data) > self.xsize:
                 self.plot_data = self.plot_data[-self.xsize:]
-                self.line.set_ydata(self.plot_data)
+                self.line.set_ydata(self.plot_data)#[-self.xsize:])
             else:
                 self.xaxis.append(i)
                 i+=1
@@ -183,6 +194,17 @@ class App:
         print("Terminating acquisition.")
         self.my_thread.join(timeout=.1)
 
+    def save_data(self):
+        #data = []
+        with open('IBM4_Voltmeter_data.txt', 'w') as f:
+            for line in self.plot_data:
+                f.write(f"{line}\n")
+
+            #print(self.ssid_dev, file=f)
+
+    def close_app(self):
+        self.save_data()
+        self.root.quit()
 
 if __name__ == "__main__":
     app = App()
